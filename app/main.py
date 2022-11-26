@@ -3,13 +3,15 @@ from fastapi.responses import JSONResponse
 import pandas as pd
 from app.templates.data_dict import table_dict
 from app.validations.tables import generate_filter_codes
+from app.database.upload import upload_df_redshift
 import csv
 import codecs
 import re
 
 app = FastAPI()
 # uvicorn app.main:app --reload
-
+# docker build --platform linux/amd64 --no-cache -t data_api_globant_test -f Dockerfile .
+# docker run --name data_api -p 8777:8000 data_api_globant_test
 
 @app.get("/")
 async def root():
@@ -38,13 +40,14 @@ def upload(file: UploadFile = File(...)):
         return JSONResponse(status_code=405,
                             content={'error': 'The number of lines should be between 1 and 1000'})
 
-    data = df.to_dict(orient="records")
-
     codeline = generate_filter_codes(df, ttype)
     loc = {'df': df}
     exec(codeline, globals(), loc)
 
-    df_ok = loc['df_ok'].to_dict(orient="records")
+    df_ok = loc['df_ok']
+    # print(df_ok)
+    result_upload = upload_df_redshift(df_ok, ttype)
+    # print(result_upload)
     df_failed = loc['df_failed'].fillna('').to_dict(orient="records")
     return JSONResponse(status_code=200, content={'file': file.filename,
                                                   'type': ttype,
