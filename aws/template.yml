@@ -1,0 +1,66 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Company Data Management
+Resources:
+
+  LambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: "/"
+      Policies:
+        - PolicyName: EC2AccessRole
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+            - Effect: Allow
+              Action:
+              - ec2:*
+              Resource: "*"
+            - Effect: Allow
+              Action:
+              - logs:*
+              Resource: "*"
+
+  CompanyDataBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: !Join
+          - '-'
+          - - company-data
+            - !Ref 'AWS::AccountId'
+            
+# Smallest possible Redshift cluster, and role needed to utilize Redshift Spectrum
+  CompanyCluster: 
+    Type: 'AWS::Redshift::Cluster'
+    Properties:
+      ClusterIdentifier: 'company-cluster'
+      DBName: 'company'
+      MasterUsername: 'dataeng'
+      MasterUserPassword: Strongpass1
+      NodeType: 'dc2.large'
+      ClusterType: 'single-node'
+      IamRoles:
+        - !GetAtt 'SpectrumRole.Arn'
+
+  SpectrumRole:
+      Type: AWS::IAM::Role
+      Properties:
+        RoleName: SpectrumRole
+        AssumeRolePolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service: redshift.amazonaws.com
+              Action: sts:AssumeRole
+        ManagedPolicyArns:
+          - arn:aws:iam::aws:policy/AmazonS3FullAccess
+          - arn:aws:iam::aws:policy/AWSGlueConsoleFullAccess
