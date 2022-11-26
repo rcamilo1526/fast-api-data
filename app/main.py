@@ -38,6 +38,11 @@ def upload(file: UploadFile = File(...)):
     file.file.close()
     nrows = len(df.index)
 
+    content_reponse = {'file': file.filename,
+                       'type': ttype,
+                       'columns': tcolumns,
+                       'rows': nrows}
+
     if nrows < 1 or nrows > 1000:
         return JSONResponse(status_code=405,
                             content={'error': 'The number of lines should be between 1 and 1000'})
@@ -47,12 +52,21 @@ def upload(file: UploadFile = File(...)):
     exec(codeline, globals(), loc)
 
     df_ok = loc['df_ok']
-    # print(df_ok)
-    result_upload = upload_df_redshift(df_ok, ttype)
+    df_failed = loc['df_failed']
+
+    # result_upload = upload_df_redshift(df_ok, ttype)
     # print(result_upload)
-    df_failed = loc['df_failed'].fillna('').to_dict(orient="records")
-    return JSONResponse(status_code=200, content={'file': file.filename,
-                                                  'type': ttype,
-                                                  'columns': tcolumns,
-                                                  'rows': nrows,
-                                                  'data_failed': df_failed})
+
+    ok_inserts = len(df_ok.index)
+    if len(df_failed.index) == 0:
+        content_reponse['result'] = 'All the records have been uploaded'
+        content_reponse['nrows_inserted'] = ok_inserts
+    else:
+        content_reponse[
+            'result'] = f'Errors founded on records failed, successfully uploaded {ok_inserts} registers'
+        if ok_inserts > 0:
+            content_reponse['nrows_inserted'] = ok_inserts
+        df_failed = df_failed.fillna('').to_dict(orient="records")
+        content_reponse['rows_failed'] = df_failed
+
+    return JSONResponse(status_code=200, content=content_reponse)
