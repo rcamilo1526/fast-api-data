@@ -3,7 +3,7 @@ import redshift_connector
 
 def upload_df_redshift(df, ttype):
     conn = redshift_connector.connect(
-        host='company-cluster.ctmzezwolcyt.us-east-1.redshift.amazonaws.com',
+        host='company-cluster.ckcxnp1vuf26.us-east-1.redshift.amazonaws.com',
         database='company',
         user='dataeng',
         password='Strongpass1'

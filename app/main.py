@@ -1,16 +1,26 @@
-from fastapi import FastAPI, File, UploadFile, Header
+from fastapi import FastAPI, File, UploadFile, Depends
+from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.responses import JSONResponse
 import pandas as pd
 from app.templates.data_dict import table_dict
 from app.validations.tables import generate_filter_codes
-from app.database.redshift import upload_df_redshift
-import csv
-import codecs
+from app.services.redshift import upload_df_redshift
+
+from app.security.auth import authenticate
 import re
 
-app = FastAPI()
-# uvicorn app.main:app --reload
+description = """
+DATA API to validate and upload csv company data 🏢
 
+## Items
+
+upload can validate and upload data **user and password required**.
+"""
+
+app = FastAPI(title="data api", description=description)
+
+# commands to run 
+# uvicorn app.main:app --reload
 # docker build -t data_api:0.1 .
 # docker run -p 8000:8000 --name my-api data_api:0.1
 
@@ -22,7 +32,10 @@ async def root():
 
 @app.post("/upload")
 # def upload(table: str, file: UploadFile = File(...)):
-def upload(file: UploadFile = File(...)):
+async def upload(form_data: OAuth2PasswordRequestForm = Depends(),
+                 file: UploadFile = File(...)):
+
+    await authenticate(form_data)
 
     # ttype = file.filename.replace('.csv', '')
     ttype = (re.search('^(departments|hired_employees|jobs).*',
@@ -53,10 +66,7 @@ def upload(file: UploadFile = File(...)):
 
     df_ok = loc['df_ok']
     df_failed = loc['df_failed']
-
-    # result_upload = upload_df_redshift(df_ok, ttype)
-    # print(result_upload)
-
+    upload_df_redshift(df_ok, ttype)
     ok_inserts = len(df_ok.index)
     if len(df_failed.index) == 0:
         content_reponse['result'] = 'All the records have been uploaded'
