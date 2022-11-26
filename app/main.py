@@ -3,15 +3,17 @@ from fastapi.responses import JSONResponse
 import pandas as pd
 from app.templates.data_dict import table_dict
 from app.validations.tables import generate_filter_codes
-from app.database.upload import upload_df_redshift
+from app.database.redshift import upload_df_redshift
 import csv
 import codecs
 import re
 
 app = FastAPI()
 # uvicorn app.main:app --reload
-# docker build --platform linux/amd64 --no-cache -t data_api_globant_test -f Dockerfile .
-# docker run --name data_api -p 8777:8000 data_api_globant_test
+
+# docker build -t data_api:0.1 .
+# docker run -p 8000:8000 --name my-api data_api:0.1
+
 
 @app.get("/")
 async def root():
