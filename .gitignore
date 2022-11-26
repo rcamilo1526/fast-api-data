@@ -131,3 +131,5 @@ dmypy.json
 data/
 
 test*
+
+.DS_Store
