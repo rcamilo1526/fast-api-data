@@ -32,20 +32,20 @@ S3bucket_node1 = glueContext.create_dynamic_frame.from_options(
         "paths": [
             input_file
         ]
-    },
-    transformation_ctx="S3bucket_node1",
+    }
 )
-
+sts = boto3.client("sts")
+account_id = sts.get_caller_identity()["Account"]
 # Script generated for node S3 bucket
 S3bucket_node3 = glueContext.write_dynamic_frame.from_options(
     frame=S3bucket_node1,
     connection_type="s3",
     format="avro",
     connection_options={
-        "path": f"s3://company-backup-202169348149/backup/{ttype}.avro",
+        "path": f"s3://company-backup-{account_id}/backup/{ttype}.avro",
         "partitionKeys": [],
     },
-    transformation_ctx="S3bucket_node3",
+    transformation_ctx="gluejob",
 )
 s3 = boto3.resource('s3')
 s3.Object(key, bucket).delete()

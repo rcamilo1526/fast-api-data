@@ -1,88 +1,119 @@
-AWSTemplateFormatVersion: '2010-09-09'
+AWSTemplateFormatVersion: "2010-09-09"
 Description: Company Data Management
 Resources:
-
-  LambdaRole:
+  # Roles
+  SpectrumRole:
     Type: AWS::IAM::Role
     Properties:
+      RoleName: SpectrumRole
       AssumeRolePolicyDocument:
-        Version: '2012-10-17'
+        Version: "2012-10-17"
         Statement:
-        - Effect: Allow
-          Principal:
-            Service:
-            - lambda.amazonaws.com
-          Action:
-          - sts:AssumeRole
-      Path: "/"
-      Policies:
-        - PolicyName: EC2AccessRole
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-            - Effect: Allow
-              Action:
-              - ec2:*
-              Resource: "*"
-            - Effect: Allow
-              Action:
-              - logs:*
-              Resource: "*"
+          - Effect: Allow
+            Principal:
+              Service: redshift.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess
+        - arn:aws:iam::aws:policy/AWSGlueConsoleFullAccess
 
-  CompanyDataBucket:
-      Type: AWS::S3::Bucket
-      Properties:
-        BucketName: !Join
-          - '-'
-          - - company-data
-            - !Ref 'AWS::AccountId'
-  CompanyBackupBucket:
-      Type: AWS::S3::Bucket
-      Properties:
-        BucketName: !Join
-          - '-'
-          - - company-backup
-            - !Ref 'AWS::AccountId'
-            
-# Smallest possible Redshift cluster, and role needed to utilize Redshift Spectrum
-  CompanyCluster: 
-    Type: 'AWS::Redshift::Cluster'
-    Properties:
-      ClusterIdentifier: 'company-cluster'
-      DBName: 'company'
-      MasterUsername: 'dataeng'
-      MasterUserPassword: Strongpass1
-      NodeType: 'dc2.large'
-      ClusterType: 'single-node'
-      IamRoles:
-        - !GetAtt 'SpectrumRole.Arn'
-
-  SpectrumRole:
-      Type: AWS::IAM::Role
-      Properties:
-        RoleName: SpectrumRole
-        AssumeRolePolicyDocument:
-          Version: '2012-10-17'
-          Statement:
-            - Effect: Allow
-              Principal:
-                Service: redshift.amazonaws.com
-              Action: sts:AssumeRole
-        ManagedPolicyArns:
-          - arn:aws:iam::aws:policy/AmazonS3FullAccess
-          - arn:aws:iam::aws:policy/AWSGlueConsoleFullAccess
   GlueRole:
-      Type: AWS::IAM::Role
-      Properties:
-        RoleName: GlueRole
-        AssumeRolePolicyDocument:
-          Version: '2012-10-17'
-          Statement:
-            - Effect: Allow
-              Principal:
-                Service: glue.amazonaws.com
-              Action: sts:AssumeRole
-        ManagedPolicyArns:
-          - arn:aws:iam::aws:policy/AmazonS3FullAccess
-          - arn:aws:iam::aws:policy/AWSGlueConsoleFullAccess
-          - arn:aws:iam::aws:policy/AWSGlueServiceRole
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: GlueRole
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: glue.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess
+        - arn:aws:iam::aws:policy/AWSGlueConsoleFullAccess
+        - arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole
+
+  LambdaRoleGlue:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: LambdaRoleGlue
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess
+        - arn:aws:iam::aws:policy/AWSGlueConsoleFullAccess
+
+  # Lambda function to start Glue
+  GlueInitFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        ZipFile: |
+          import json
+          import boto3
+          def lambda_handler(event, context):
+              bucketName = event["Records"][0]["s3"]["bucket"]["name"]
+              fileName = event["Records"][0]["s3"]["object"]["key"]
+
+              print(bucketName, fileName)
+
+              glue = boto3.client('glue')
+
+              response = glue.start_job_run(
+                  JobName='parquet2avro',
+                  Arguments={
+                      '--s3_key': fileName,
+                      '--s3_bucket': bucketName
+                  }
+              )
+
+              return {
+                  'statusCode': 200,
+                  'body': json.dumps('parquet2avro triggered')
+              }
+      FunctionName: S32GlueStarter
+      Handler: index.lambda_handler
+      Role: !GetAtt "LambdaRoleGlue.Arn"
+      Runtime: python3.7
+      Timeout: 60
+
+  # Buckets
+  CompanyDataBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Join
+        - "-"
+        - - company-data
+          - !Ref "AWS::AccountId"
+  CompanyBackupBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Join
+        - "-"
+        - - company-backup
+          - !Ref "AWS::AccountId"
+  GlueScriptBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Join
+        - "-"
+        - - company-glue-scripts
+          - !Ref "AWS::AccountId"
+
+  # Smallest possible Redshift cluster, and role needed to utilize Redshift Spectrum
+  CompanyCluster:
+    Type: "AWS::Redshift::Cluster"
+    Properties:
+      ClusterIdentifier: "company-cluster"
+      DBName: "company"
+      MasterUsername: "dataeng"
+      MasterUserPassword: Strongpass1
+      NodeType: "dc2.large"
+      ClusterType: "single-node"
+      IamRoles:
+        - !GetAtt "SpectrumRole.Arn"
