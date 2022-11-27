@@ -36,6 +36,13 @@ Resources:
           - '-'
           - - company-data
             - !Ref 'AWS::AccountId'
+  CompanyBackupBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: !Join
+          - '-'
+          - - company-backup
+            - !Ref 'AWS::AccountId'
             
 # Smallest possible Redshift cluster, and role needed to utilize Redshift Spectrum
   CompanyCluster: 
@@ -64,3 +71,18 @@ Resources:
         ManagedPolicyArns:
           - arn:aws:iam::aws:policy/AmazonS3FullAccess
           - arn:aws:iam::aws:policy/AWSGlueConsoleFullAccess
+  GlueRole:
+      Type: AWS::IAM::Role
+      Properties:
+        RoleName: GlueRole
+        AssumeRolePolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service: glue.amazonaws.com
+              Action: sts:AssumeRole
+        ManagedPolicyArns:
+          - arn:aws:iam::aws:policy/AmazonS3FullAccess
+          - arn:aws:iam::aws:policy/AWSGlueConsoleFullAccess
+          - arn:aws:iam::aws:policy/AWSGlueServiceRole
