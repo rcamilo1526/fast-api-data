@@ -19,24 +19,24 @@ CREATE TABLE IF NOT EXISTS JOBS
 );
 -- TABLE UPLOAD
 COPY HIRED_EMPLOYEES FROM 
-'s3://company-data-202169348149/data/hired_employees.csv'
-iam_role 'arn:aws:iam::202169348149:role/SpectrumRole'
+'s3://company-data-102646861802/data/hired_employees.csv'
+iam_role 'arn:aws:iam::102646861802:role/SpectrumRole'
 CSV;
 COPY JOBS FROM 
-'s3://company-data-202169348149/data/jobs.csv'
-iam_role 'arn:aws:iam::202169348149:role/SpectrumRole'
+'s3://company-data-102646861802/data/jobs.csv'
+iam_role 'arn:aws:iam::102646861802:role/SpectrumRole'
 CSV;
 COPY DEPARTMENTS FROM 
-'s3://company-data-202169348149/data/departments.csv'
-iam_role 'arn:aws:iam::202169348149:role/SpectrumRole'
+'s3://company-data-102646861802/data/departments.csv'
+iam_role 'arn:aws:iam::102646861802:role/SpectrumRole'
 CSV;
 -- FEATURE BACKUP
 CREATE OR REPLACE PROCEDURE BACKUP_HIRED_EMPLOYEES()
 AS $$
 BEGIN
 UNLOAD('SELECT * FROM COMPANY.PUBLIC.HIRED_EMPLOYEES')
-to 's3://company-backup-202169348149/backup-parquet/HIRED_EMPLOYEES'
-iam_role 'arn:aws:iam::202169348149:role/SpectrumRole'
+to 's3://company-backup-102646861802/backup-parquet/HIRED_EMPLOYEES'
+iam_role 'arn:aws:iam::102646861802:role/SpectrumRole'
 FORMAT PARQUET ALLOWOVERWRITE;
 END;
 $$
@@ -46,8 +46,8 @@ CREATE OR REPLACE PROCEDURE BACKUP_JOBS()
 AS $$
 BEGIN
 UNLOAD('SELECT * FROM COMPANY.PUBLIC.JOBS')
-to 's3://company-backup-202169348149/backup-parquet/JOBS'
-iam_role 'arn:aws:iam::202169348149:role/SpectrumRole'
+to 's3://company-backup-102646861802/backup-parquet/JOBS'
+iam_role 'arn:aws:iam::102646861802:role/SpectrumRole'
 FORMAT PARQUET ALLOWOVERWRITE;
 END;
 $$
@@ -57,22 +57,25 @@ CREATE OR REPLACE PROCEDURE BACKUP_DEPARTMENTS()
 AS $$
 BEGIN
 UNLOAD('SELECT * FROM COMPANY.PUBLIC.DEPARTMENTS')
-to 's3://company-backup-202169348149/backup-parquet/DEPARTMENTS'
-iam_role 'arn:aws:iam::202169348149:role/SpectrumRole'
+to 's3://company-backup-102646861802/backup-parquet/DEPARTMENTS'
+iam_role 'arn:aws:iam::102646861802:role/SpectrumRole'
 FORMAT PARQUET ALLOWOVERWRITE;
 END;
 $$
 LANGUAGE plpgsql
 ;
+CALL BACKUP_HIRED_EMPLOYEES();
+CALL BACKUP_JOBS();
+CALL BACKUP_DEPARTMENTS();
 -- FEATURE RESTORE
 CREATE OR REPLACE PROCEDURE RESTORE_HIRED_EMPLOYEES()
 AS $$
 BEGIN
 DELETE FROM DEPARTMENTS;
 COPY DEPARTMENTS FROM 
-'s3://company-backup-202169348149/backup/HIRED_EMPLOYEES.avro'
-iam_role 'arn:aws:iam::202169348149:role/SpectrumRole'
-AVRO AS 'auto';
+'s3://company-backup-102646861802/backup/HIRED_EMPLOYEES.avro'
+iam_role 'arn:aws:iam::102646861802:role/SpectrumRole'
+AVRO AS 'auto' IGNOREALLERRORS;
 END;
 $$
 LANGUAGE plpgsql
@@ -82,9 +85,9 @@ AS $$
 BEGIN
 DELETE FROM DEPARTMENTS;
 COPY DEPARTMENTS FROM 
-'s3://company-backup-202169348149/backup/JOBS.avro'
-iam_role 'arn:aws:iam::202169348149:role/SpectrumRole'
-AVRO AS 'auto';
+'s3://company-backup-102646861802/backup/JOBS.avro'
+iam_role 'arn:aws:iam::102646861802:role/SpectrumRole'
+AVRO AS 'auto' IGNOREALLERRORS;
 END;
 $$
 LANGUAGE plpgsql
@@ -94,9 +97,9 @@ AS $$
 BEGIN
 DELETE FROM DEPARTMENTS;
 COPY DEPARTMENTS FROM 
-'s3://company-backup-202169348149/backup/DEPARTMENTS.avro'
-iam_role 'arn:aws:iam::202169348149:role/SpectrumRole'
-AVRO AS 'auto';
+'s3://company-backup-102646861802/backup/DEPARTMENTS.avro'
+iam_role 'arn:aws:iam::102646861802:role/SpectrumRole'
+AVRO AS 'auto' IGNOREALLERRORS;
 END;
 $$
 LANGUAGE plpgsql
@@ -104,7 +107,7 @@ LANGUAGE plpgsql
 
 
 -- CHALLENGE #2
-CREATE VIEW HIRES_DEPARTMENT_JOB AS
+CREATE OR REPLACE VIEW HIRES_DEPARTMENT_JOB AS
 WITH BY_QTR AS (SELECT DEPARTMENT,
                        JOB,
                        EXTRACT(QTR FROM TO_DATE("DATETIME", 'YYYY-MM-DD"T"HH24:MI:SSZ')) AS QTR,
@@ -124,7 +127,7 @@ FROM BY_QTR
 GROUP BY DEPARTMENT,JOB
 ORDER BY DEPARTMENT,JOB;
 
-CREATE VIEW DEPARTMENTS_HIRED_ABOVE_MEAN AS
+CREATE OR REPLACE VIEW DEPARTMENTS_HIRED_ABOVE_MEAN AS
 WITH HIRES_BY_DEPARTMENT AS (SELECT D.ID, DEPARTMENT, COUNT(*) HIRED
                              FROM HIRED_EMPLOYEES E
                                       LEFT JOIN DEPARTMENTS D ON E.DEPARTMENT_ID = D.ID
