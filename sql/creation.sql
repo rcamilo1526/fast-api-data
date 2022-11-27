@@ -19,24 +19,24 @@ CREATE TABLE IF NOT EXISTS JOBS
 );
 -- TABLE UPLOAD
 COPY HIRED_EMPLOYEES FROM 
-'s3://company-data-753873909731/data/hired_employees.csv'
-iam_role 'arn:aws:iam::753873909731:role/SpectrumRole'
+'s3://company-data-202169348149/data/hired_employees.csv'
+iam_role 'arn:aws:iam::202169348149:role/SpectrumRole'
 CSV;
 COPY JOBS FROM 
-'s3://company-data-753873909731/data/jobs.csv'
-iam_role 'arn:aws:iam::753873909731:role/SpectrumRole'
+'s3://company-data-202169348149/data/jobs.csv'
+iam_role 'arn:aws:iam::202169348149:role/SpectrumRole'
 CSV;
 COPY DEPARTMENTS FROM 
-'s3://company-data-753873909731/data/departments.csv'
-iam_role 'arn:aws:iam::753873909731:role/SpectrumRole'
+'s3://company-data-202169348149/data/departments.csv'
+iam_role 'arn:aws:iam::202169348149:role/SpectrumRole'
 CSV;
 -- FEATURE BACKUP
 CREATE OR REPLACE PROCEDURE BACKUP_HIRED_EMPLOYEES()
 AS $$
 BEGIN
 UNLOAD('SELECT * FROM COMPANY.PUBLIC.HIRED_EMPLOYEES')
-to 's3://company-data-753873909731/backup/HIRED_EMPLOYEES'
-iam_role 'arn:aws:iam::753873909731:role/SpectrumRole'
+to 's3://company-data-202169348149/backup/HIRED_EMPLOYEES'
+iam_role 'arn:aws:iam::202169348149:role/SpectrumRole'
 FORMAT PARQUET ALLOWOVERWRITE;
 END;
 $$
@@ -46,8 +46,8 @@ CREATE OR REPLACE PROCEDURE BACKUP_JOBS()
 AS $$
 BEGIN
 UNLOAD('SELECT * FROM COMPANY.PUBLIC.JOBS')
-to 's3://company-data-753873909731/backup/JOBS'
-iam_role 'arn:aws:iam::753873909731:role/SpectrumRole'
+to 's3://company-data-202169348149/backup/JOBS'
+iam_role 'arn:aws:iam::202169348149:role/SpectrumRole'
 FORMAT PARQUET ALLOWOVERWRITE;
 END;
 $$
@@ -57,8 +57,8 @@ CREATE OR REPLACE PROCEDURE BACKUP_DEPARTMENTS()
 AS $$
 BEGIN
 UNLOAD('SELECT * FROM COMPANY.PUBLIC.DEPARTMENTS')
-to 's3://company-data-753873909731/backup/DEPARTMENTS'
-iam_role 'arn:aws:iam::753873909731:role/SpectrumRole'
+to 's3://company-data-202169348149/backup/DEPARTMENTS'
+iam_role 'arn:aws:iam::202169348149:role/SpectrumRole'
 FORMAT PARQUET ALLOWOVERWRITE;
 END;
 $$
@@ -91,7 +91,7 @@ ORDER BY DEPARTMENT,JOB;
 
 CREATE VIEW DEPARTMENTS_HIRED_ABOVE_MEAN AS
 WITH HIRES_BY_DEPARTMENT AS (SELECT D.ID, DEPARTMENT, COUNT(*) HIRED
-                             FROM HIRED_EMPLOYEES EGIT
+                             FROM HIRED_EMPLOYEES E
                                       LEFT JOIN DEPARTMENTS D ON E.DEPARTMENT_ID = D.ID
                              WHERE EXTRACT(Y FROM TO_DATE("DATETIME", 'YYYY-MM-DD"T"HH24:MI:SSZ')) = 2021
                              GROUP BY 1, 2)
