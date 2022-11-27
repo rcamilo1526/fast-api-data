@@ -1,5 +1,4 @@
 # DATA API REST
-Globant test
 
 To run this project, you'll need to have [Docker](https://docs.docker.com/get-docker/) installed.
 
