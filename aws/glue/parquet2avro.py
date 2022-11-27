@@ -39,7 +39,11 @@ S3bucket_node1 = glueContext.create_dynamic_frame.from_options(
 )
 avro_bucket = f"company-backup-{account_id}"
 avro_key = f"backup/{ttype}.avro"
-s3.Object(avro_bucket, avro_key).delete()
+print('borrar avro')
+bucket_obj = s3.Bucket(avro_bucket)
+bucket_obj.objects.filter(Prefix=f"{avro_key}/").delete()
+
+print('escrubir avro')
 # Script generated for node S3 bucket
 S3bucket_node3 = glueContext.write_dynamic_frame.from_options(
     frame=S3bucket_node1,
