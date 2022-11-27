@@ -14,6 +14,9 @@ spark = glueContext.spark_session
 job = Job(glueContext)
 job.init(args["JOB_NAME"], args)
 
+sts = boto3.client("sts")
+account_id = sts.get_caller_identity()["Account"]
+s3 = boto3.resource('s3')
 
 bucket = args['s3_bucket']
 key = args['s3_key']
@@ -34,20 +37,21 @@ S3bucket_node1 = glueContext.create_dynamic_frame.from_options(
         ]
     }
 )
-sts = boto3.client("sts")
-account_id = sts.get_caller_identity()["Account"]
+avro_bucket = f"company-backup-{account_id}"
+avro_key = f"backup/{ttype}.avro"
+s3.Object(avro_bucket, avro_key).delete()
 # Script generated for node S3 bucket
 S3bucket_node3 = glueContext.write_dynamic_frame.from_options(
     frame=S3bucket_node1,
     connection_type="s3",
     format="avro",
     connection_options={
-        "path": f"s3://company-backup-{account_id}/backup/{ttype}.avro",
+        "path": f"s3://{avro_bucket}/{avro_key}",
         "partitionKeys": [],
     },
     transformation_ctx="gluejob",
 )
-s3 = boto3.resource('s3')
-s3.Object(key, bucket).delete()
+
+s3.Object(bucket, key).delete()
 
 job.commit()
