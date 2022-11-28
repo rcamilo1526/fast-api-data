@@ -1,11 +1,12 @@
-from fastapi import FastAPI, File, UploadFile, Depends
+from fastapi import FastAPI, File, UploadFile, Depends, Query
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.responses import JSONResponse
 import pandas as pd
 from app.templates.data_dict import table_dict
 from app.validations.tables import generate_filter_codes
-from app.services.redshift import upload_df_redshift
-
+from app.services.redshift import (upload_df_redshift, backup_table,
+                                   restore_table, get_insights)
+from app.parameters import TableParameters, ViewsParameters
 from app.security.auth import authenticate
 import re
 
@@ -19,7 +20,7 @@ upload can validate and upload data **user and password required**.
 
 app = FastAPI(title="data api", description=description)
 
-# commands to run 
+# commands to run
 # uvicorn app.main:app --reload
 # docker build -t data_api:0.1 .
 # docker run -p 8000:8000 --name my-api data_api:0.1
@@ -80,3 +81,52 @@ async def upload(form_data: OAuth2PasswordRequestForm = Depends(),
         content_reponse['rows_failed'] = df_failed
 
     return JSONResponse(status_code=200, content=content_reponse)
+
+
+@app.post("/backup")
+async def backup(form_data: OAuth2PasswordRequestForm = Depends(),
+                 params: TableParameters = Depends()):
+
+    await authenticate(form_data)
+    ttype = params.table
+    if ttype not in table_dict:
+        return JSONResponse(status_code=405,
+                            content={'error': f'The table {ttype} is not supported'})
+    try:
+        status = backup_table(ttype)
+        return status
+    except Exception as e:
+        return e
+
+
+@app.post("/restore")
+async def restore(form_data: OAuth2PasswordRequestForm = Depends(),
+                  params: TableParameters = Depends()):
+
+    await authenticate(form_data)
+    ttype = params.table
+    if ttype not in table_dict:
+        return JSONResponse(status_code=405,
+                            content={'error': f'The table {ttype} is not supported'})
+    try:
+        status = restore_table(ttype)
+        return status
+    except Exception as e:
+        return e
+
+
+@app.get("/insights")
+async def insights(params: ViewsParameters = Depends()):
+
+    vtype = params.table
+    vlimit = params.limit
+    available_insights = ['HIRES_DEPARTMENT_JOB',
+                          'DEPARTMENTS_HIRED_ABOVE_MEAN']
+    if vtype not in available_insights:
+        return JSONResponse(status_code=405,
+                            content={'error': f'The insight {vtype} is not supported'})
+    try:
+        status = get_insights(vtype, vlimit)
+        return status
+    except Exception as e:
+        return e

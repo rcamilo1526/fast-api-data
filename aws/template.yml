@@ -82,7 +82,6 @@ Resources:
       Runtime: python3.7
       Timeout: 60
 
-
   # Buckets
   CompanyDataBucket:
     Type: AWS::S3::Bucket
@@ -119,7 +118,7 @@ Resources:
       IamRoles:
         - !GetAtt "SpectrumRole.Arn"
 
-# Lambda to upload Data
+  # Lambda to upload Data
   UploadDataScript:
     Type: AWS::Lambda::Function
     Properties:
@@ -166,7 +165,7 @@ Resources:
       - UploadDataScript
       - CompanyDataBucket
 
-# Lambda Function to upload glue script
+  # Lambda Function to upload glue script
   UploadScriptGlueFunction:
     Type: AWS::Lambda::Function
     Properties:
@@ -193,7 +192,7 @@ Resources:
               except Exception as e:
                   print(e)
                   cfnresponse.send(event, context, cfnresponse.FAILED, responseData)
-              
+
       FunctionName: GetParquet2AvroFile
       Description: Invoke a function to get gluescript.
       Handler: index.lambda_handler
@@ -204,7 +203,7 @@ Resources:
   UploadScriptGlue:
     Type: Custom::UploadScriptGlueFunction
     Properties:
-      ServiceToken: !GetAtt 'UploadScriptGlueFunction.Arn'
+      ServiceToken: !GetAtt "UploadScriptGlueFunction.Arn"
     DependsOn:
       - UploadScriptGlueFunction
       - GlueScriptBucket
