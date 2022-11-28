@@ -12,11 +12,11 @@ def generate_filter_codes(df, ttype):
         filter_name = f'filter_{c}'
 
         if dtype == 'INTEGER':
-            codeline += f"\n{filter_name} = df['{c}'].str.contains('^[0-9]*$').fillna(False)"
+            codeline += f"\n{filter_name} = df['{c}'].str.contains('^[0-9]*$').notnull().fillna(False)"
         elif dtype == 'ISO_DATE':
             codeline += f";{filter_name} =  pd.to_datetime(df['{c}'], errors='coerce',format='%Y-%m-%dT%H:%M:%SZ').notnull().fillna(False)"
         elif dtype == 'STRING':
-            continue
+            codeline += f"\n{filter_name} = df['{c}'].notnull()"
         filters.append(filter_name)
     codeline += "\ndf_ok = df[("+')&('.join(filters)+")]"
     codeline += "\ndf_failed = df[(~"+')|(~'.join(filters)+")]"

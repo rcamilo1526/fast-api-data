@@ -1,4 +1,4 @@
-from fastapi import FastAPI, File, UploadFile, Depends, Query
+from fastapi import FastAPI, File, UploadFile, Depends
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.responses import JSONResponse
 import pandas as pd
@@ -9,6 +9,7 @@ from app.services.redshift import (upload_df_redshift, backup_table,
 from app.parameters import TableParameters, ViewsParameters
 from app.security.auth import authenticate
 import re
+import time
 
 description = """
 DATA API to validate and upload csv company data 🏢
@@ -24,6 +25,7 @@ app = FastAPI(title="data api", description=description)
 # uvicorn app.main:app --reload
 # docker build -t data_api:0.1 .
 # docker run -p 8000:8000 --name my-api data_api:0.1
+# nohup docker run -p 8000:8000 --name my-api data_api:0.1 > my.log 2>&1 &
 
 
 @app.get("/")
@@ -35,7 +37,7 @@ async def root():
 # def upload(table: str, file: UploadFile = File(...)):
 async def upload(form_data: OAuth2PasswordRequestForm = Depends(),
                  file: UploadFile = File(...)):
-
+    start = time.time()
     await authenticate(form_data)
 
     # ttype = file.filename.replace('.csv', '')
@@ -52,10 +54,10 @@ async def upload(form_data: OAuth2PasswordRequestForm = Depends(),
     file.file.close()
     nrows = len(df.index)
 
-    content_reponse = {'file': file.filename,
-                       'type': ttype,
-                       'columns': tcolumns,
-                       'rows': nrows}
+    content_response = {'file': file.filename,
+                        'type': ttype,
+                        'columns': tcolumns,
+                        'rows': nrows}
 
     if nrows < 1 or nrows > 1000:
         return JSONResponse(status_code=405,
@@ -69,24 +71,30 @@ async def upload(form_data: OAuth2PasswordRequestForm = Depends(),
     df_failed = loc['df_failed']
     upload_df_redshift(df_ok, ttype)
     ok_inserts = len(df_ok.index)
-    if len(df_failed.index) == 0:
-        content_reponse['result'] = 'All the records have been uploaded'
-        content_reponse['nrows_inserted'] = ok_inserts
+    fail_rows = len(df_failed.index)
+    if fail_rows == 0:
+        content_response['result'] = 'All the records have been uploaded'
+        content_response['nrows_inserted'] = ok_inserts
     else:
-        content_reponse[
+        content_response[
             'result'] = f'Errors founded on records failed, successfully uploaded {ok_inserts} registers'
         if ok_inserts > 0:
-            content_reponse['nrows_inserted'] = ok_inserts
+            content_response['nrows_inserted'] = ok_inserts
         df_failed = df_failed.fillna('').to_dict(orient="records")
-        content_reponse['rows_failed'] = df_failed
+        content_response['rows_failed'] = df_failed
+        content_response['nrows_failed'] = fail_rows
 
-    return JSONResponse(status_code=200, content=content_reponse)
+    end = time.time()
+    duration = round(end - start, 2)
+    content_response['duration(s)'] = duration
+    return JSONResponse(status_code=200, content=content_response)
 
 
 @app.post("/backup")
 async def backup(form_data: OAuth2PasswordRequestForm = Depends(),
                  params: TableParameters = Depends()):
-
+    start = time.time()
+    content_response = {}
     await authenticate(form_data)
     ttype = params.table
     if ttype not in table_dict:
@@ -94,15 +102,23 @@ async def backup(form_data: OAuth2PasswordRequestForm = Depends(),
                             content={'error': f'The table {ttype} is not supported'})
     try:
         status = backup_table(ttype)
-        return status
+        content_response['result'] = status
+        end = time.time()
+        duration = round(end - start, 2)
+        content_response['duration(s)'] = duration
+        return JSONResponse(status_code=200, content=content_response)
     except Exception as e:
-        return e
+        content_response['result'] = e
+        duration = round(end - start, 2)
+        content_response['duration(s)'] = duration
+        return JSONResponse(status_code=400, content=content_response)
 
 
 @app.post("/restore")
 async def restore(form_data: OAuth2PasswordRequestForm = Depends(),
                   params: TableParameters = Depends()):
-
+    start = time.time()
+    content_response = {}
     await authenticate(form_data)
     ttype = params.table
     if ttype not in table_dict:
@@ -110,9 +126,16 @@ async def restore(form_data: OAuth2PasswordRequestForm = Depends(),
                             content={'error': f'The table {ttype} is not supported'})
     try:
         status = restore_table(ttype)
-        return status
+        content_response['result'] = status
+        end = time.time()
+        duration = round(end - start, 2)
+        content_response['duration(s)'] = duration
+        return JSONResponse(status_code=200, content=content_response)
     except Exception as e:
-        return e
+        content_response['result'] = e
+        duration = round(end - start, 2)
+        content_response['duration(s)'] = duration
+        return JSONResponse(status_code=400, content=content_response)
 
 
 @app.get("/insights")
