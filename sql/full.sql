@@ -19,24 +19,24 @@ CREATE TABLE IF NOT EXISTS JOBS
 );
 -- TABLE UPLOAD
 COPY HIRED_EMPLOYEES FROM 
-'s3://company-data-102646861802/data/hired_employees.csv'
-iam_role 'arn:aws:iam::102646861802:role/SpectrumRole'
+'s3://company-data-{account_id}/data/hired_employees.csv'
+iam_role 'arn:aws:iam::{account_id}:role/SpectrumRole'
 CSV;
 COPY JOBS FROM 
-'s3://company-data-102646861802/data/jobs.csv'
-iam_role 'arn:aws:iam::102646861802:role/SpectrumRole'
+'s3://company-data-{account_id}/data/jobs.csv'
+iam_role 'arn:aws:iam::{account_id}:role/SpectrumRole'
 CSV;
 COPY DEPARTMENTS FROM 
-'s3://company-data-102646861802/data/departments.csv'
-iam_role 'arn:aws:iam::102646861802:role/SpectrumRole'
+'s3://company-data-{account_id}/data/departments.csv'
+iam_role 'arn:aws:iam::{account_id}:role/SpectrumRole'
 CSV;
 -- FEATURE BACKUP
 CREATE OR REPLACE PROCEDURE BACKUP_HIRED_EMPLOYEES()
 AS $$
 BEGIN
 UNLOAD('SELECT * FROM COMPANY.PUBLIC.HIRED_EMPLOYEES')
-to 's3://company-backup-102646861802/backup-parquet/HIRED_EMPLOYEES'
-iam_role 'arn:aws:iam::102646861802:role/SpectrumRole'
+to 's3://company-backup-{account_id}/backup-parquet/HIRED_EMPLOYEES'
+iam_role 'arn:aws:iam::{account_id}:role/SpectrumRole'
 FORMAT PARQUET ALLOWOVERWRITE;
 END;
 $$
@@ -46,8 +46,8 @@ CREATE OR REPLACE PROCEDURE BACKUP_JOBS()
 AS $$
 BEGIN
 UNLOAD('SELECT * FROM COMPANY.PUBLIC.JOBS')
-to 's3://company-backup-102646861802/backup-parquet/JOBS'
-iam_role 'arn:aws:iam::102646861802:role/SpectrumRole'
+to 's3://company-backup-{account_id}/backup-parquet/JOBS'
+iam_role 'arn:aws:iam::{account_id}:role/SpectrumRole'
 FORMAT PARQUET ALLOWOVERWRITE;
 END;
 $$
@@ -57,8 +57,8 @@ CREATE OR REPLACE PROCEDURE BACKUP_DEPARTMENTS()
 AS $$
 BEGIN
 UNLOAD('SELECT * FROM COMPANY.PUBLIC.DEPARTMENTS')
-to 's3://company-backup-102646861802/backup-parquet/DEPARTMENTS'
-iam_role 'arn:aws:iam::102646861802:role/SpectrumRole'
+to 's3://company-backup-{account_id}/backup-parquet/DEPARTMENTS'
+iam_role 'arn:aws:iam::{account_id}:role/SpectrumRole'
 FORMAT PARQUET ALLOWOVERWRITE;
 END;
 $$
@@ -73,8 +73,8 @@ AS $$
 BEGIN
 DELETE FROM DEPARTMENTS;
 COPY DEPARTMENTS FROM 
-'s3://company-backup-102646861802/backup/HIRED_EMPLOYEES.avro'
-iam_role 'arn:aws:iam::102646861802:role/SpectrumRole'
+'s3://company-backup-{account_id}/backup/HIRED_EMPLOYEES.avro'
+iam_role 'arn:aws:iam::{account_id}:role/SpectrumRole'
 AVRO AS 'auto' IGNOREALLERRORS;
 END;
 $$
@@ -85,8 +85,8 @@ AS $$
 BEGIN
 DELETE FROM DEPARTMENTS;
 COPY DEPARTMENTS FROM 
-'s3://company-backup-102646861802/backup/JOBS.avro'
-iam_role 'arn:aws:iam::102646861802:role/SpectrumRole'
+'s3://company-backup-{account_id}/backup/JOBS.avro'
+iam_role 'arn:aws:iam::{account_id}:role/SpectrumRole'
 AVRO AS 'auto' IGNOREALLERRORS;
 END;
 $$
@@ -97,8 +97,8 @@ AS $$
 BEGIN
 DELETE FROM DEPARTMENTS;
 COPY DEPARTMENTS FROM 
-'s3://company-backup-102646861802/backup/DEPARTMENTS.avro'
-iam_role 'arn:aws:iam::102646861802:role/SpectrumRole'
+'s3://company-backup-{account_id}/backup/DEPARTMENTS.avro'
+iam_role 'arn:aws:iam::{account_id}:role/SpectrumRole'
 AVRO AS 'auto' IGNOREALLERRORS;
 END;
 $$
