@@ -1,7 +1,7 @@
 import redshift_connector
 import pandas as pd
 
-creds = {'host': 'company-cluster.cjeyqvacweag.us-east-1.redshift.amazonaws.com',
+creds = {'host': 'company-cluster.cij1xx7rk2xm.us-east-1.redshift.amazonaws.com',
          'database': 'company',
          'user': 'dataeng',
          'password': 'Strongpass1'}
