@@ -20,11 +20,38 @@ Resources:
   # Data
   CompanyDataBucket:
     Type: AWS::S3::Bucket
+    DependsOn: GlueInvokePermissionData
     Properties:
+      NotificationConfiguration:
+        LambdaConfigurations:
+          - Event: s3:ObjectCreated:Put
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: suffix
+                    Value: csv
+            Function: !GetAtt GlueInitFunction.Arn
+          - Event: s3:ObjectCreated:CompleteMultipartUpload
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: suffix
+                    Value: csv
+            Function: !GetAtt GlueInitFunction.Arn
       BucketName: !Join
         - "-"
         - - company-data
           - !Ref "AWS::AccountId"
+
+  GlueInvokePermissionData:
+    Type: AWS::Lambda::Permission
+    DependsOn: GlueInitFunction
+    Properties:
+      FunctionName: !GetAtt GlueInitFunction.Arn
+      Action: lambda:InvokeFunction
+      Principal: s3.amazonaws.com
+      SourceArn: !Sub "arn:aws:s3:::company-data-${AWS::AccountId}"
+
   # Lambda to upload Data
   UploadDataScript:
     Type: AWS::Lambda::Function
@@ -114,7 +141,9 @@ Resources:
               account_id = sts.get_caller_identity()["Account"]
               client = boto3.client('s3')
               client.put_object(Body=file_content, Bucket=f'company-glue-scripts-{account_id}', Key='parquet2avro.py')
-
+              url = 'https://raw.githubusercontent.com/rcamilo1526/fast-api-data/main/aws/glue/cleanCSV2PARQUET.py'
+              file_content = requests.get(url).content
+              client.put_object(Body=file_content, Bucket=f'company-glue-scripts-{account_id}', Key='cleanCSV2PARQUET.py')
           def lambda_handler(event, context):
               print(f'Received event: {json.dumps(event)}')
               responseData = {}
@@ -124,7 +153,6 @@ Resources:
               except Exception as e:
                   print(e)
                   cfnresponse.send(event, context, cfnresponse.FAILED, responseData)
-
       FunctionName: GetParquet2AvroFile
       Description: Invoke a function to get gluescript.
       Handler: index.lambda_handler
@@ -166,6 +194,35 @@ Resources:
       GlueVersion: "3.0"
       NumberOfWorkers: 10
       WorkerType: "G.1X"
+    DependsOn: UploadScriptGlue
+
+  GlueDataCleanJob:
+    Type: AWS::Glue::Job
+    Properties:
+      Command:
+        Name: glueetl
+        ScriptLocation: !Sub "s3://company-glue-scripts-${AWS::AccountId}/cleanCSV2PARQUET.py"
+        PythonVersion: "3"
+      DefaultArguments:
+        "--TempDir": !Sub "s3://company-glue-scripts-${AWS::AccountId}/temp/"
+        "--class": "GlueApp"
+        "--enable-auto-scaling": "true"
+        "--enable-continuous-cloudwatch-log": "true"
+        "--enable-glue-datacatalog": "true"
+        "--enable-job-insights": "true"
+        "--enable-metrics": "true"
+        "--enable-spark-ui": "true"
+        "--job-bookmark-option": "job-bookmark-disable"
+        "--job-language": "python"
+      ExecutionProperty:
+        MaxConcurrentRuns: 10
+      MaxRetries: 0
+      Name: cleanCSV2PARQUET
+      Role: !GetAtt GlueRole.Arn
+      GlueVersion: "3.0"
+      NumberOfWorkers: 10
+      WorkerType: "G.1X"
+    DependsOn: UploadScriptGlue
 
   GlueInitFunction:
     Type: AWS::Lambda::Function
@@ -182,8 +239,13 @@ Resources:
 
               glue = boto3.client('glue')
 
+              if 'data' in bucketName:
+                  job = 'cleanCSV2PARQUET'
+              elif 'backup' in bucketName:
+                  job = 'parquet2avro'
+                  
               response = glue.start_job_run(
-                  JobName='parquet2avro',
+                  JobName=job,
                   Arguments={
                       '--s3_key': fileName,
                       '--s3_bucket': bucketName
@@ -199,6 +261,9 @@ Resources:
       Role: !GetAtt "LambdaRoleGlue.Arn"
       Runtime: python3.7
       Timeout: 60
+    DependsOn:
+      - GlueDataCleanJob
+      - GlueBackupJob
 
   CompanyBackupBucket:
     Type: AWS::S3::Bucket
@@ -261,3 +326,18 @@ Resources:
       ClusterType: "single-node"
       IamRoles:
         - !GetAtt "SpectrumRole.Arn"
+
+# EC2 for api
+Resources:
+  MYAPIINSTANCE:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-0b0dcb5067f052a63
+      InstanceType: t2.medium
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          sudo yum update -y
+          sudo amazon-linux-extras install docker
+          sudo service docker start
+          sudo yum install git -y
