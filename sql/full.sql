@@ -1,35 +1,35 @@
 -- TABLE CREATION
 CREATE TABLE IF NOT EXISTS HIRED_EMPLOYEES
 (
-    ID            INT PRIMARY KEY,
+    ID            INTEGER PRIMARY KEY,
     NAME          VARCHAR,
-    DATETIME      varchar,
-    DEPARTMENT_ID INT,
+    DATETIME      VARCHAR,
+    DEPARTMENT_ID INTEGER,
     JOB_ID        INTEGER
 );
 CREATE TABLE IF NOT EXISTS DEPARTMENTS
 (
-    ID         INT PRIMARY KEY,
+    ID         INTEGER PRIMARY KEY,
     DEPARTMENT VARCHAR
 );
 CREATE TABLE IF NOT EXISTS JOBS
 (
-    ID  INT PRIMARY KEY,
+    ID  INTEGER PRIMARY KEY,
     JOB VARCHAR
 );
 -- TABLE UPLOAD
 COPY HIRED_EMPLOYEES FROM 
-'s3://company-data-{account_id}/data/hired_employees.csv'
+'s3://company-data-{account_id}/data/hired_employees.parquet'
 iam_role 'arn:aws:iam::{account_id}:role/SpectrumRole'
-CSV;
+PARQUET;
 COPY JOBS FROM 
-'s3://company-data-{account_id}/data/jobs.csv'
+'s3://company-data-{account_id}/data/jobs.parquet'
 iam_role 'arn:aws:iam::{account_id}:role/SpectrumRole'
-CSV;
+PARQUET;
 COPY DEPARTMENTS FROM 
-'s3://company-data-{account_id}/data/departments.csv'
+'s3://company-data-{account_id}/data/departments.parquet'
 iam_role 'arn:aws:iam::{account_id}:role/SpectrumRole'
-CSV;
+PARQUET;
 -- FEATURE BACKUP
 CREATE OR REPLACE PROCEDURE BACKUP_HIRED_EMPLOYEES()
 AS $$
@@ -37,7 +37,8 @@ BEGIN
 UNLOAD('SELECT * FROM COMPANY.PUBLIC.HIRED_EMPLOYEES')
 to 's3://company-backup-{account_id}/backup-parquet/HIRED_EMPLOYEES'
 iam_role 'arn:aws:iam::{account_id}:role/SpectrumRole'
-FORMAT PARQUET ALLOWOVERWRITE;
+FORMAT PARQUET ALLOWOVERWRITE
+PARALLEL OFF;
 END;
 $$
 LANGUAGE plpgsql
@@ -48,7 +49,8 @@ BEGIN
 UNLOAD('SELECT * FROM COMPANY.PUBLIC.JOBS')
 to 's3://company-backup-{account_id}/backup-parquet/JOBS'
 iam_role 'arn:aws:iam::{account_id}:role/SpectrumRole'
-FORMAT PARQUET ALLOWOVERWRITE;
+FORMAT PARQUET ALLOWOVERWRITE
+PARALLEL OFF;
 END;
 $$
 LANGUAGE plpgsql
@@ -59,7 +61,8 @@ BEGIN
 UNLOAD('SELECT * FROM COMPANY.PUBLIC.DEPARTMENTS')
 to 's3://company-backup-{account_id}/backup-parquet/DEPARTMENTS'
 iam_role 'arn:aws:iam::{account_id}:role/SpectrumRole'
-FORMAT PARQUET ALLOWOVERWRITE;
+FORMAT PARQUET ALLOWOVERWRITE
+PARALLEL OFF;
 END;
 $$
 LANGUAGE plpgsql
