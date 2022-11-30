@@ -327,8 +327,6 @@ Resources:
       IamRoles:
         - !GetAtt "SpectrumRole.Arn"
 
-# EC2 for api
-Resources:
   MYAPIINSTANCE:
     Type: AWS::EC2::Instance
     Properties:
