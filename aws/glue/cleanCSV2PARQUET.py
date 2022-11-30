@@ -20,7 +20,7 @@ table_dict = {
     'departments': StructType([
         StructField("id", IntegerType(), True),
         StructField("department", StringType(), True)]),
-    'job': StructType([
+    'jobs': StructType([
         StructField("id", IntegerType(), True),
         StructField("job", StringType(), True)]),
 }
