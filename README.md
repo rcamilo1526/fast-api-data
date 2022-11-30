@@ -9,10 +9,10 @@ _All the credentials, aws resources and others were created on a temporal aws ac
   - [Install API](#install-api)
   - [Credentials and table configuration](#credentials-and-table-configuration)
   - [Use API](#use-api)
-  - [Architecture description](#architecture-description)
+  - [Architecture diagram](#architecture-diagram)
   - [Challenge explanation](#challenge-explanation)
     - [Challenge 1](#challenge-1)
-      - [1. The historic upload could be done in two ways](#1-the-historic-upload-could-be-done-in-two-ways)
+      - [1. The historic upload](#1-the-historic-upload)
       - [2. The API REST is developed with Python, Fast API.](#2-the-api-rest-is-developed-with-python-fast-api)
         - [1. The validation](#1-the-validation)
         - [2. Row qty verification:](#2-row-qty-verification)
@@ -22,6 +22,7 @@ _All the credentials, aws resources and others were created on a temporal aws ac
     - [Challenge 2](#challenge-2)
     - [1. HIRES\_DEPARTMENT\_JOB](#1-hires_department_job)
     - [2. DEPARTMENTS\_HIRED\_ABOVE\_MEAN](#2-departments_hired_above_mean)
+  - [Tableau insights](#tableau-insights)
   - [AWS preparation](#aws-preparation)
     - [1. Cloudformation](#1-cloudformation)
     - [2. Redshift](#2-redshift)
@@ -99,8 +100,12 @@ In order to configure credentials and tables is you should.
    - [Restore](./sql/restore_procedure.sql)
    - [Insight](./sql/insights.sql)
 ## Use API
+  ```python
+  pass
+  ```
+## Architecture diagram
 
-## Architecture description
+ ![diagram](images/diagram.png)
 
 ## Challenge explanation
 
@@ -118,9 +123,10 @@ To resolve the challenge was used this stack
 - **AUTH:** The API have a basic authentication which use a fake database of users to ask for credential for use the services that affect the database like the first 3 endpoints listed previously 
 - **Docker:** There is possible to install and use the package containerized using Docker the explanation is on the section of this very README [Install API section](#install-api)
 ### Challenge 1
-#### 1. The historic upload could be done in two ways
-   - In the [upload data queries](./sql/copy_data.sql) we can copy directly from S3 CSV to Redshift and cleaning it using SQL, these upload is very scalable and support massive loads in short time periods (depending on cluster resources)
-   - Using spark script on Glue to ETL cleaning the data and updating to redshift
+#### 1. The historic upload 
+The historic upload is done first transforming and cleaning the data throughout a [Glue job](aws/glue/cleanCSV2PARQUET.py) that leave the final data in a parquet file in a bucket where we can run the [upload data queries](./sql/copy_data.sql) to upload the data.
+
+ ![](images/historic.png)
 #### 2. The API REST is developed with Python, Fast API.
 ##### 1. The validation
  Is done with the [data_dict file](app/templates/data_dict.py) generating dynamically filters [validations.tables](app/validations/tables.py) from and separates the correct data from the incorrect. The filters applicated are:
@@ -147,7 +153,7 @@ To resolve the challenge was used this stack
     upload_df_redshift(df_ok, ttype)
     content_response['rows_failed'] =  df_failed.fillna('').to_dict(orient="records")
     ```
-    
+ ![](images/upload.png)   
 
 ##### 2. Row qty verification:
 On the [upload definition](app/main.py) function there is a verification for minimum and maximum number of lines.:
@@ -175,6 +181,8 @@ The endpoint backup/ calls a stored procedure [backup procedure query](sql/backu
         LANGUAGE plpgsql
         ;
 ```
+
+ ![](images/backup.png)
 #### 4. Restore
 The endpoint restore/ calls a stored procedure [restore procedure query](sql/restore_procedures.sql), that delete, restore copying the avro file and commit the transaction.
 
@@ -192,6 +200,8 @@ The endpoint restore/ calls a stored procedure [restore procedure query](sql/res
         LANGUAGE plpgsql
         ;
 ```
+
+ ![](images/restore.png)
 ### Challenge 2
 ### 1. HIRES_DEPARTMENT_JOB
 ```plpsql
@@ -230,6 +240,12 @@ WHERE HIRED > (SELECT AVG(HIRED) FROM HIRES_BY_DEPARTMENT)
 ORDER BY 3 DESC;
 
 ```
+These queries could be used as views or if running scheduled queries into a table to improve performance.
+## Tableau insights
+  ```python
+  pass
+  ```
+
 ## AWS preparation
 
 ### 1. Cloudformation ### 
@@ -239,21 +255,33 @@ Upload the [aws/cloudformation/template.yml](aws/cloudformation/template.yml) to
 
 This will create these resources 
 - The Glue Job to trigger Glue from lambda
+- The Glue Job to ETL the original data
 - The Roles for Glue, Lambda and Redshift for use S3 and Glue
-- Lambda function that init the Glue scripts when the parquet file have been written.
+- Lambda function that init the Glue scripts when the files have been written.
 - Lambda Function that download the data to the company data bucket
+- Lambda Function that download the Glue scripts
+- Invoke permissions from s3 to lambda
 - The Redshift Cluster, with the credentials used for redshift database and user.
 - Three buckets for Company data, Company backup and Glue Script the name is the join of the type of content that are going to have and the id of the account. (to be unique)
-- A custom resource that run the lambda for download data
+- A custom resource that run the lambdas for download data and scripts
+
+Optional:
+- EC2 instance to run the api
+  
+After all the resources are created we have 3 buckets for backup, data and glue scripts, we also have the original data cleaned in parquet format in the data bucket, we now can access to redshift cluster.
 
 ### 2. Redshift
 
- Connect to the redshift cluster using your preferred IDE or directly on redshift console in the Query editor section the credentials are the same of the template credentials, run [sql/full.sql](sql/full.sql) queries changing the {account_id} for the id of the account used in the redshift cluster if you have changed the database name in the template ofr cloudformation you will need to change these names on the queries
+ Connect to the redshift cluster using your preferred IDE or directly on redshift console in the Query editor section the credentials are the same of the template credentials, run [sql/full.sql](sql/full.sql) queries changing the {account_id} for the id of the account used in the redshift cluster if you have changed the database name in the template ofr cloudformation you will need to change these names on the queries.
 
 ![QueryResult](images/succesfull_queries.png "Query")
 
 ### Running api on EC2
- Is possible to upload and run the api from a EC2 just 
+ Is possible to upload and run the api from a EC2 just follow the steps on [Credentials and table configuration](#credentials-and-table-configuration) section upload the code and access the api on the cloud
+
+ ![EC2 Running api](images/EC2RUNNING.png)
+
+ 
 
 
 ![](https://img.shields.io/badge/Language-Python-informational?style=flat&logo=python&logoColor=white&color=2496ED)
