@@ -9,25 +9,26 @@ _All the credentials, aws resources and others were created on a temporal aws ac
   - [Install API](#install-api)
   - [Credentials and table configuration](#credentials-and-table-configuration)
   - [Use API](#use-api)
+    - [/upload](#upload)
+    - [/backup](#backup)
+    - [/restore](#restore)
+    - [/insights](#insights)
   - [Architecture diagram](#architecture-diagram)
   - [Challenge explanation](#challenge-explanation)
     - [Challenge 1](#challenge-1)
       - [1. The historic upload](#1-the-historic-upload)
       - [2. The API REST is developed with Python, Fast API.](#2-the-api-rest-is-developed-with-python-fast-api)
         - [1. The validation](#1-the-validation)
-        - [2. Row qty verification:](#2-row-qty-verification)
         - [3. multitable](#3-multitable)
       - [3. Backup](#3-backup)
       - [4. Restore](#4-restore)
     - [Challenge 2](#challenge-2)
     - [1. HIRES\_DEPARTMENT\_JOB](#1-hires_department_job)
     - [2. DEPARTMENTS\_HIRED\_ABOVE\_MEAN](#2-departments_hired_above_mean)
-  - [Tableau insights](#tableau-insights)
   - [AWS preparation](#aws-preparation)
     - [1. Cloudformation](#1-cloudformation)
     - [2. Redshift](#2-redshift)
     - [Running api on EC2](#running-api-on-ec2)
-
 
 ## Repository structure
 
@@ -36,16 +37,16 @@ _All the credentials, aws resources and others were created on a temporal aws ac
 ├── Dockerfile                      -- Dockerfile
 ├── README.md                       -- Readme file
 ├── app                              -- App folder
-│   ├── __init__.py                                 
+│   ├── __init__.py
 │   ├── database
 │   │   └── users.py                -- Users 'Database' basic auth
 │   ├── main.py                     -- main api script
 │   ├── parameters.py               -- Parameter objects to use requests
 │   ├── security
 │   │   └── auth.py                 -- scripts basic auth
-│   ├── services    
+│   ├── services
 │   │   └── redshift.py             -- Redshift service to run queries
-│   ├── templates      
+│   ├── templates
 │   │   └── data_dict.py            -- Data dictionary definition
 │   └── validations
 │       └── tables.py               -- scripts validation
@@ -61,14 +62,13 @@ _All the credentials, aws resources and others were created on a temporal aws ac
 │   ├── hired_employees.csv
 │   └── jobs.csv
 ├── images                          -- images readme
-├── requirements.txt                -- python requirements 
+├── requirements.txt                -- python requirements
 ├── scripts
 │   ├── ec2-preparation.sh          -- ec2 config bash
 │   └── post_file.sh                -- example of file upload to api
 └── sql                             -- SQL Queries
 
 ```
-
 
 ## Install API
 
@@ -99,75 +99,194 @@ In order to configure credentials and tables is you should.
    - [Backup](./sql/backup_procedure.sql)
    - [Restore](./sql/restore_procedure.sql)
    - [Insight](./sql/insights.sql)
+
 ## Use API
-  ```python
-  pass
-  ```
+
+The api will be available on [http://127.0.0.1:8000/](http://127.0.0.1:8000/) or the host machine ip. To access and use the api you could begin accesing to the `/docs` endpoint when you could view the service and description of all the available services and you could try the service.
+
+![](images/api_docs.png)
+Aclaration: for the post request you will need the user and password configured on the [users file](app/database/users.py) file.
+
+### /upload
+
+Here you can upload your data to the database you can only add your csv with the name of the file starting the name.
+
+**Valid filenames:**
+
+- hired_employees.csv
+- hired_employees_20221130.csv
+- jobs_prod.csv
+
+**Invalid filenames:**
+
+- 20221120_hired_employees.csv
+- myowntable.csv
+
+_Remember that the maximum rows of the file should be between 1 and 1000_
+After put the credentials you could do the petition and you would to receive a response like one of these beside apart from the errors
+
+```json
+{
+  "file": "hired_employees copy.csv",
+  "type": "hired_employees",
+  "columns": [
+    "id",
+    "name",
+    "datetime",
+    "department_id",
+    "job_id"
+  ],
+  "rows": 1000,
+  "result": "Errors founded on records failed, successfully uploaded 967 registers",
+  "nrows_inserted": 967,
+  "rows_failed": [
+    {
+      "id": "2",
+      "name": "Ty Hofer",
+      "datetime": "2021-05-30T05:43:46Z",
+      "department_id": "8",
+      "job_id": ""
+    },...
+  ],
+  "nrows_failed": 33,
+  "duration(s)": 28.3
+}
+```
+
+### /backup
+
+Is necessary to specify the table and the credentials, after the response should be like
+
+```json
+{
+  "result": "Backup process for departments started.",
+  "duration(s)": 0.59
+}
+```
+
+That trigger the backup process from redshift to s3 in parquet and the glue transformation from parquet to avro
+
+### /restore
+
+Is necessary to specify the table and the credentials, after the response should be like
+
+```json
+{
+  "result": "Table departments restored from backup.",
+  "duration(s)": 1.32
+}
+```
+
+### /insights
+
+Is necessary to specify the table, Optionally you can specify the limit of the result like this `/insights/?table=HIRES_DEPARTMENT_JOB&limit=4` and these will return the insight data records in json format
+
+```json
+[
+  {
+    "department": "Accounting",
+    "job": "Account Representative IV",
+    "q1": 1,
+    "q2": 0,
+    "q3": 0,
+    "q4": 0
+  },
+  {
+    "department": "Accounting",
+    "job": "Actuary",
+    "q1": 0,
+    "q2": 3,
+    "q3": 0,
+    "q4": 0
+  },
+  {
+    "department": "Accounting",
+    "job": "Analyst Programmer",
+    "q1": 0,
+    "q2": 0,
+    "q3": 1,
+    "q4": 0
+  },
+  {
+    "department": "Accounting",
+    "job": "Budget/Accounting Analyst III",
+    "q1": 0,
+    "q2": 3,
+    "q3": 0,
+    "q4": 0
+  }
+]
+```
+
 ## Architecture diagram
 
- ![diagram](images/diagram.png)
+![diagram](images/diagram.png)
 
 ## Challenge explanation
 
 To resolve the challenge was used this stack
+
 - **API REST:** Fast Api a popular python framework used in api creation.
 - **DATABASE:** the database used is AWS Redshift Warehouse service, according to the challenge these need to support big data, so for me these is appropriate in order to take advantage of their scalability, flexibility and compatibility.
-- **DATAUPLOAD AND TRANFORMATION:** Directly using the redshift option for import data and cleaning using SQL and AWS Glue to  transform parquet backup in AVRO Format
+- **DATAUPLOAD AND TRANFORMATION:** Directly using the redshift option for import data and cleaning using SQL and AWS Glue to transform parquet backup in AVRO Format
 - **File System (Also a kind of data lake):** AWS S3
-- **ENDPOINTS:** The API REST is developed with Python, Fast API which have 5 endpoints to use 
+- **ENDPOINTS:** The API REST is developed with Python, Fast API which have 5 endpoints to use
   1. upload/ to upload the data Challenge 1 2.
   2. backup/ to backup the data Challenge 1 3.
   3. restore/ to restore the data Challenge 1 4.
   4. insights/ to show insights Challenge 2
   5. / a little greeting
-- **AUTH:** The API have a basic authentication which use a fake database of users to ask for credential for use the services that affect the database like the first 3 endpoints listed previously 
+- **AUTH:** The API have a basic authentication which use a fake database of users to ask for credential for use the services that affect the database like the first 3 endpoints listed previously
 - **Docker:** There is possible to install and use the package containerized using Docker the explanation is on the section of this very README [Install API section](#install-api)
+
 ### Challenge 1
-#### 1. The historic upload 
+
+#### 1. The historic upload
+
 The historic upload is done first transforming and cleaning the data throughout a [Glue job](aws/glue/cleanCSV2PARQUET.py) that leave the final data in a parquet file in a bucket where we can run the [upload data queries](./sql/copy_data.sql) to upload the data.
 
- ![](images/historic.png)
+![](images/historic.png)
+
 #### 2. The API REST is developed with Python, Fast API.
+
 ##### 1. The validation
- Is done with the [data_dict file](app/templates/data_dict.py) generating dynamically filters [validations.tables](app/validations/tables.py) from and separates the correct data from the incorrect. The filters applicated are:
-    - For integer data there is a regular expression that filter the data which is not completely an integer type.
-    ```python
-    df['{c}'].str.contains('^[0-9]*$')
-    ```
-    - For datetime iso format the verification was made using which verify if the date is valid.
-    ```python
-    pd.to_datetime(df['{c}'], errors='coerce',format='%Y-%m-%dT%H:%M:%SZ')
-    ```
-    - In all the columns is applied the null filter to select these like erroneous data.
-    ```python
-    df['{c}'].notnull()
-    ```
-    these script is executed with exec and the dataframe is separated according to the validation, one is uploaded and the other is logged in json format
-    ```python
-    codeline = generate_filter_codes(df, ttype)
-    loc = {'df': df}
-    exec(codeline, globals(), loc)
+
+Is done with the [data_dict file](app/templates/data_dict.py) generating dynamically filters [validations.tables](app/validations/tables.py) from and separates the correct data from the incorrect. The filters applicated are: - For integer data there is a regular expression that filter the data which is not completely an integer type.
+`python df['{c}'].str.contains('^[0-9]*$') ` - For datetime iso format the verification was made using which verify if the date is valid.
+`python pd.to_datetime(df['{c}'], errors='coerce',format='%Y-%m-%dT%H:%M:%SZ') ` - In all the columns is applied the null filter to select these like erroneous data.
+`python df['{c}'].notnull() `
+these script is executed with exec and the dataframe is separated according to the validation, one is uploaded and the other is logged in json format
+```python
+codeline = generate_filter_codes(df, ttype)
+loc = {'df': df}
+exec(codeline, globals(), loc)
 
     df_ok = loc['df_ok']
     df_failed = loc['df_failed']
     upload_df_redshift(df_ok, ttype)
     content_response['rows_failed'] =  df_failed.fillna('').to_dict(orient="records")
     ```
- ![](images/upload.png)   
+
+![](images/upload.png)
 
 ##### 2. Row qty verification:
+
 On the [upload definition](app/main.py) function there is a verification for minimum and maximum number of lines.:
-   ```python
-    if nrows < 1 or nrows > 1000:
-    return JSONResponse(status_code=405,
-                        content={'error': 'The number of lines should be between 1 and 1000'})
-   ```
+
+```python
+ if nrows < 1 or nrows > 1000:
+ return JSONResponse(status_code=405,
+                     content={'error': 'The number of lines should be between 1 and 1000'})
+```
+
 ##### 3. multitable
+
 the upload/ endpoint recognize the type of table uploaded.
 
-   
 #### 3. Backup
+
 The endpoint backup/ calls a stored procedure [backup procedure query](sql/backup_procedures.sql), the query save the table in parquet format and for business requirements these trigger a lambda which trigger a Glue job that transform these parquet into AVRO. Detailed explanation in [AWS preparation](#aws-preparation) section
+
 ```plpsql
     CREATE OR REPLACE PROCEDURE BACKUP_{table}()
         AS $$
@@ -182,28 +301,33 @@ The endpoint backup/ calls a stored procedure [backup procedure query](sql/backu
         ;
 ```
 
- ![](images/backup.png)
+![](images/backup.png)
+
 #### 4. Restore
+
 The endpoint restore/ calls a stored procedure [restore procedure query](sql/restore_procedures.sql), that delete, restore copying the avro file and commit the transaction.
 
-   ```plpsql
-    CREATE OR REPLACE PROCEDURE RESTORE_{table}()
-        AS $$
-        BEGIN
-        DELETE FROM {table};
-        COPY {table} FROM 
-        's3://company-backup-{account_id}/backup/{table}.avro'
-        iam_role 'arn:aws:iam::{account_id}:role/SpectrumRole'
-        AVRO AS 'auto' IGNOREALLERRORS;
-        END;
-        $$
-        LANGUAGE plpgsql
-        ;
+```plpsql
+ CREATE OR REPLACE PROCEDURE RESTORE_{table}()
+     AS $$
+     BEGIN
+     DELETE FROM {table};
+     COPY {table} FROM
+     's3://company-backup-{account_id}/backup/{table}.avro'
+     iam_role 'arn:aws:iam::{account_id}:role/SpectrumRole'
+     AVRO AS 'auto' IGNOREALLERRORS;
+     END;
+     $$
+     LANGUAGE plpgsql
+     ;
 ```
 
- ![](images/restore.png)
+![](images/restore.png)
+
 ### Challenge 2
+
 ### 1. HIRES_DEPARTMENT_JOB
+
 ```plpsql
 
 CREATE OR REPLACE VIEW HIRES_DEPARTMENT_JOB AS
@@ -227,10 +351,14 @@ GROUP BY DEPARTMENT,JOB
 ORDER BY DEPARTMENT,JOB;
 ```
 
-<iframe>https://public.tableau.com/views/Company_hires_BI/Sheet1?:language=en-US&:display_count=n&:origin=viz_share_link</iframe>
+![](images/insights_1_1.png)
+![](images/insights_1_2.png)
+![](images/insights_1_3.png)
 
+[Tableau Viz](https://public.tableau.com/views/CompanyhiresBI/Top9Jobshiresoverthequarters_?:language=en-US&:display_count=n&:origin=viz_share_link)
 
 ### 2. DEPARTMENTS_HIRED_ABOVE_MEAN
+
 ```plpsql
 CREATE OR REPLACE VIEW DEPARTMENTS_HIRED_ABOVE_MEAN AS
 WITH HIRES_BY_DEPARTMENT AS (SELECT D.ID, DEPARTMENT, COUNT(*) HIRED
@@ -244,20 +372,22 @@ WHERE HIRED > (SELECT AVG(HIRED) FROM HIRES_BY_DEPARTMENT)
 ORDER BY 3 DESC;
 
 ```
+
+![](images/insight_2.png)
+[Tableau Viz](https://public.tableau.com/views/CompanytophiresBI/Dashboard?:language=en-US&:display_count=n&:origin=viz_share_link)
+
 These queries could be used as views or if running scheduled queries into a table to improve performance.
-## Tableau insights
-  ```python
-  pass
-  ```
 
 ## AWS preparation
 
-### 1. Cloudformation ### 
-Upload the [aws/cloudformation/template.yml](aws/cloudformation/template.yml) to cloudformation  and wait until all resources are created
-   
+### 1. Cloudformation
+
+Upload the [aws/cloudformation/template.yml](aws/cloudformation/template.yml) to cloudformation and wait until all resources are created
+
 ![cloudformationStackResult](./images/cloudformationStackResult.png "Stack result")
 
-This will create these resources 
+This will create these resources
+
 - The Glue Job to trigger Glue from lambda
 - The Glue Job to ETL the original data
 - The Roles for Glue, Lambda and Redshift for use S3 and Glue
@@ -270,48 +400,38 @@ This will create these resources
 - A custom resource that run the lambdas for download data and scripts
 
 Optional:
+
 - EC2 instance to run the api
-  
+
 After all the resources are created we have 3 buckets for backup, data and glue scripts, we also have the original data cleaned in parquet format in the data bucket, we now can access to redshift cluster.
 
 ### 2. Redshift
 
- Connect to the redshift cluster using your preferred IDE or directly on redshift console in the Query editor section the credentials are the same of the template credentials, run [sql/full.sql](sql/full.sql) queries changing the {account_id} for the id of the account used in the redshift cluster if you have changed the database name in the template ofr cloudformation you will need to change these names on the queries.
+Connect to the redshift cluster using your preferred IDE or directly on redshift console in the Query editor section the credentials are the same of the template credentials, run [sql/full.sql](sql/full.sql) queries changing the {account_id} for the id of the account used in the redshift cluster if you have changed the database name in the template ofr cloudformation you will need to change these names on the queries.
 
 ![QueryResult](images/succesfull_queries.png "Query")
 
 ### Running api on EC2
- Is possible to upload and run the api from a EC2 just follow the steps on [Credentials and table configuration](#credentials-and-table-configuration) section upload the code and access the api on the cloud
 
- ![EC2 Running api](images/EC2RUNNING.png)
+Is possible to upload and run the api from a EC2 just follow the steps on [Credentials and table configuration](#credentials-and-table-configuration) section upload the code and access the api on the cloud
 
- 
-
+![EC2 Running api](images/EC2RUNNING.png)
 
 ![](https://img.shields.io/badge/Language-Python-informational?style=flat&logo=python&logoColor=white&color=2496ED)
 ![](https://img.shields.io/badge/Framework-FastAPI-informational?style=flat&logo=fastapi&logoColor=white&color=2496ED)
 ![](https://img.shields.io/badge/Tools-Docker-informational?style=flat&logo=docker&logoColor=white&color=2496ED)
 
 <h2> About me </h2>
- 
 
 You can find me on [![LinkedIn][1.1]][1] or on [![Kaggle][2.1]][2].
 
-My gitlab :see_no_evil: [![LinkedIn][3.1]][3] 
+My gitlab :see_no_evil: [![LinkedIn][3.1]][3]
 
 <!-- Icons -->
 
 [1.1]: https://img.shields.io/badge/LinkedIn-0077B5?style=plastic&logo=linkedin&logoColor=white
-
 [1]: https://www.linkedin.com/in/raul-camilo-martin-bernal/
-
 [2.1]: https://img.shields.io/badge/Kaggle-20BEFF?style=plastic&logo=kaggle&logoColor=white
-
 [2]: https://www.kaggle.com/rmartin1526
-
 [3.1]: https://img.shields.io/badge/GitLab-FCA121?style=plastic&logo=gitlab&logoColor=white
-
 [3]: https://gitlab.com/rcamilo1526
-
-
-<div class='tableauPlaceholder' id='viz1669842184357' style='position: relative'><noscript><a href='#'><img alt=' ' src='https:&#47;&#47;public.tableau.com&#47;static&#47;images&#47;Co&#47;Company_hires_BI&#47;Sheet1&#47;1_rss.png' style='border: none' /></a></noscript><object class='tableauViz'  style='display:none;'><param name='host_url' value='https%3A%2F%2Fpublic.tableau.com%2F' /> <param name='embed_code_version' value='3' /> <param name='site_root' value='' /><param name='name' value='Company_hires_BI&#47;Sheet1' /><param name='tabs' value='no' /><param name='toolbar' value='yes' /><param name='static_image' value='https:&#47;&#47;public.tableau.com&#47;static&#47;images&#47;Co&#47;Company_hires_BI&#47;Sheet1&#47;1.png' /> <param name='animate_transition' value='yes' /><param name='display_static_image' value='yes' /><param name='display_spinner' value='yes' /><param name='display_overlay' value='yes' /><param name='display_count' value='yes' /><param name='language' value='en-US' /></object></div>                <script type='text/javascript'>                    var divElement = document.getElementById('viz1669842184357');                    var vizElement = divElement.getElementsByTagName('object')[0];                    vizElement.style.width='100%';vizElement.style.height=(divElement.offsetWidth*0.75)+'px';                    var scriptElement = document.createElement('script');                    scriptElement.src = 'https://public.tableau.com/javascripts/api/viz_v1.js';                    vizElement.parentNode.insertBefore(scriptElement, vizElement);                </script>
